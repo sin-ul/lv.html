@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A Museum of Us | Interactive Gift</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #fff8f6;
+      --accent: #e11d48;
+      --accent-soft: #ffe4e6;
+      --text-main: #271519;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      transition: background-color 0.6s ease, color 0.6s ease;
+      overflow-x: hidden;
+    }
+    .serif {
+      font-family: 'Cormorant Garamond', serif;
+    }
+
+    /* Ambient Floating Particles */
+    .particle {
+      position: fixed;
+      pointer-events: none;
+      z-index: 0;
+      animation: floatUp linear infinite;
+      opacity: 0.35;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(105vh) rotate(0deg) scale(0.8); opacity: 0; }
+      15% { opacity: 0.4; }
+      85% { opacity: 0.4; }
+      100% { transform: translateY(-10vh) rotate(360deg) scale(1.2); opacity: 0; }
+    }
+
+    /* Smooth Room Reveal & Staggered Entry */
+    .room-reveal {
+      animation: roomSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes roomSlideUp {
+      0% { opacity: 0; transform: translateY(28px) scale(0.97); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Door Swing & Ribbon Untie Animation */
+    .door-card {
+      transform-origin: left center;
+      transition: transform 0.85s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.65s ease;
+    }
+    .door-open {
+      transform: perspective(1200px) rotateY(-85deg) scale(0.95);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ribbon-pulse {
+      animation: pulseFloat 2.4s ease-in-out infinite;
+    }
+    @keyframes pulseFloat {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-6px) scale(1.06); }
+    }
+
+    /* 3D Card Flip for Reasons */
+    .flip-card {
+      perspective: 1000px;
+      height: 68px;
+    }
+    .flip-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-style: preserve-3d;
+    }
+    .flip-card.flipped .flip-inner {
+      transform: rotateX(180deg);
+    }
+    .flip-front, .flip-back {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.25rem;
+    }
+    .flip-back {
+      transform: rotateX(180deg);
+    }
+
+    /* Wax Seal Break & Letter Unfold */
+    .wax-seal {
+      box-shadow: 0 8px 20px rgba(225, 29, 72, 0.4), inset 0 2px 5px rgba(255,255,255,0.45);
+      transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.45s ease;
+    }
+    .wax-seal:hover {
+      transform: scale(1.08) rotate(-4deg);
+    }
+    .wax-seal.breaking {
+      animation: sealShake 0.45s ease forwards;
+    }
+    @keyframes sealShake {
+      0% { transform: scale(1) rotate(0deg); }
+      30% { transform: scale(1.15) rotate(-12deg); }
+      60% { transform: scale(1.25) rotate(12deg); }
+      100% { transform: scale(1.8) rotate(25deg); opacity: 0; }
+    }
+    .letter-unfold {
+      animation: unfoldPaper 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transform-origin: top center;
+    }
+    @keyframes unfoldPaper {
+      0% { opacity: 0; transform: perspective(800px) rotateX(-35deg) translateY(-10px); }
+      100% { opacity: 1; transform: perspective(800px) rotateX(0deg) translateY(0); }
+    }
+
+    /* Puzzle Tile Transitions */
+    .puzzle-tile {
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+    }
+    .puzzle-solved {
+      gap: 0px !important;
+      transition: gap 0.5s ease;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start py-6 px-4 relative">
+
+  <!-- Ambient Floating Background Container -->
+  <div id="particles-container" class="fixed inset-0 pointer-events-none overflow-hidden z-0"></div>
+
+  <!-- TOP NAVIGATION BAR -->
+  <header id="top-nav" class="relative z-10 w-full max-w-md flex items-center justify-between mb-6 bg-white/85 backdrop-blur-md px-4 py-3 rounded-2xl shadow-sm border border-rose-100">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">🏛️</span>
+      <span class="font-bold text-sm tracking-tight">OurMoments</span>
+    </div>
+    <div id="step-indicator" class="text-xs font-semibold px-3 py-1 rounded-full bg-rose-100 text-rose-700">
+      Step 01 / 05
+    </div>
+    <button onclick="togglePreviewMode()" id="mode-btn" class="text-xs font-semibold underline text-rose-600 hover:text-rose-800 transition">
+      Preview Gift 👀
+    </button>
+  </header>
+
+  <!-- ==================== BUILDER WIZARD ==================== -->
+  <main id="builder-view" class="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-rose-100/80 room-reveal">
+
+    <!-- STEP 1: NAMES & OCCASION -->
+    <section id="step-1" class="step-pane space-y-5">
+      <div>
+        <span class="text-xs uppercase tracking-widest text-rose-500 font-bold">01 · Names</span>
+        <h1 class="serif text-3xl font-bold mt-1">Make a gift she will remember forever.</h1>
+        <p class="text-xs text-gray-500 mt-1">The first thing she reads when she opens the door.</p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-700">Her Name</label>
+          <input id="her-name" type="text" value="Ananya" placeholder="e.g. Ananya" class="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-rose-500 text-sm" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-700">Your Name</label>
+          <input id="your-name" type="text" value="Rahul" placeholder="e.g. Rahul" class="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-rose-500 text-sm" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-gray-700 block mb-2">What is this for?</label>
+        <div class="grid grid-cols-2 gap-2" id="occasion-chips">
+          <button onclick="selectOccasion(this, 'Just because 💌')" class="occ-btn px-3 py-2.5 rounded-xl border border-rose-500 bg-rose-50 text-rose-700 text-xs font-semibold text-left transition">💌 Just because</button>
+          <button onclick="selectOccasion(this, 'Happy Anniversary 🥂')" class="occ-btn px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-medium text-left transition">🥂 Our anniversary</button>
+          <button onclick="selectOccasion(this, 'Happy Birthday 🎂')" class="occ-btn px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-medium text-left transition">🎂 Her birthday</button>
+          <button onclick="selectOccasion(this, 'I love you ❤️')" class="occ-btn px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-medium text-left transition">❤️ I love you</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2: VIBE & THEME ENGINE -->
+    <section id="step-2" class="step-pane hidden space-y-5">
+      <div>
+        <span class="text-xs uppercase tracking-widest text-rose-500 font-bold">02 · You Two</span>
+        <h2 class="serif text-3xl font-bold mt-1">How are you two together?</h2>
+        <p class="text-xs text-gray-500 mt-1">Changes the colors and floating background animations.</p>
+      </div>
+
+      <div class="space-y-2.5">
+        <button onclick="setTheme('soft', this)" class="theme-btn w-full p-3.5 rounded-2xl border-2 border-rose-500 bg-rose-50/60 text-left flex items-center gap-3 transition">
+          <span class="text-2xl">🌙</span>
+          <div>
+            <div class="font-bold text-sm">Soft & quiet</div>
+            <div class="text-xs text-gray-500">Long hugs & late-night talks (Blush Rose)</div>
+          </div>
+        </button>
+        <button onclick="setTheme('silly', this)" class="theme-btn w-full p-3.5 rounded-2xl border border-gray-200 text-left flex items-center gap-3 transition">
+          <span class="text-2xl">🌻</span>
+          <div>
+            <div class="font-bold text-sm">Silly & loud</div>
+            <div class="text-xs text-gray-500">Inside jokes nobody else gets (Warm Sun)</div>
+          </div>
+        </button>
+        <button onclick="setTheme('butterflies', this)" class="theme-btn w-full p-3.5 rounded-2xl border border-gray-200 text-left flex items-center gap-3 transition">
+          <span class="text-2xl">🔥</span>
+          <div>
+            <div class="font-bold text-sm">Still butterflies</div>
+            <div class="text-xs text-gray-500">You still make me nervous (Velvet Crimson)</div>
+          </div>
+        </button>
+        <button onclick="setTheme('rideordie', this)" class="theme-btn w-full p-3.5 rounded-2xl border border-gray-200 text-left flex items-center gap-3 transition">
+          <span class="text-2xl">✨</span>
+          <div>
+            <div class="font-bold text-sm">Ride or die</div>
+            <div class="text-xs text-gray-500">One call and I am already there (Starlight Lavender)</div>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <!-- STEP 3: PHOTOS & PUZZLE -->
+    <section id="step-3" class="step-pane hidden space-y-5">
+      <div>
+        <span class="text-xs uppercase tracking-widest text-rose-500 font-bold">03 · Memories & Puzzle</span>
+        <h2 class="serif text-3xl font-bold mt-1">Add a favourite photo.</h2>
+        <p class="text-xs text-gray-500 mt-1">We scramble it into an interactive 9-piece puzzle she solves.</p>
+      </div>
+
+      <div class="border-2 border-dashed border-rose-200 rounded-2xl p-4 text-center bg-rose-50/40">
+        <img id="preview-upload" src="https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=600&q=80" class="w-36 h-36 object-cover rounded-xl mx-auto mb-3 shadow-md" />
+        <label class="cursor-pointer inline-block bg-white border border-rose-200 text-rose-600 font-semibold text-xs px-4 py-2 rounded-xl shadow-sm hover:bg-rose-50 transition">
+          📸 Upload Your Photo
+          <input type="file" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)" />
+        </label>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-gray-700">Photo Caption</label>
+        <input id="photo-caption" type="text" value="Every ordinary day feels like magic with you." class="w-full mt-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm" />
+      </div>
+    </section>
+
+    <!-- STEP 4: REASONS & WAX-SEALED LETTER -->
+    <section id="step-4" class="step-pane hidden space-y-5">
+      <div>
+        <span class="text-xs uppercase tracking-widest text-rose-500 font-bold">04 · Your Words</span>
+        <h2 class="serif text-3xl font-bold mt-1">Reasons & Sealed Letter</h2>
+        <p class="text-xs text-gray-500 mt-1">She flips each card in 3D, then breaks your wax seal.</p>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-gray-700 block mb-2">What you love about her (Tap to select)</label>
+        <div class="flex flex-wrap gap-1.5" id="reasons-pool">
+          <button onclick="togglePill(this)" class="pill-active text-xs px-3 py-1.5 rounded-full border border-rose-500 bg-rose-50 text-rose-700 font-medium transition">You feel like home</button>
+          <button onclick="togglePill(this)" class="pill-active text-xs px-3 py-1.5 rounded-full border border-rose-500 bg-rose-50 text-rose-700 font-medium transition">The way you laugh at your own jokes</button>
+          <button onclick="togglePill(this)" class="pill-active text-xs px-3 py-1.5 rounded-full border border-rose-500 bg-rose-50 text-rose-700 font-medium transition">You always know when something is off</button>
+          <button onclick="togglePill(this)" class="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 transition">You make ordinary days feel special</button>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-gray-700">Your Love Letter</label>
+        <textarea id="love-letter" rows="4" maxlength="500" class="w-full mt-1 p-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-rose-500">In your smile, I found my peace. In your love, I found my home. Thank you for being my favourite person every single day.</textarea>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-gray-700 block mb-1.5">Pick the wax seal she breaks:</label>
+        <div class="flex gap-2">
+          <button onclick="selectSeal('💞', this)" class="seal-choice text-lg w-10 h-10 rounded-full border-2 border-rose-500 bg-rose-50 transition">💞</button>
+          <button onclick="selectSeal('💋', this)" class="seal-choice text-lg w-10 h-10 rounded-full border border-gray-200 transition">💋</button>
+          <button onclick="selectSeal('🌹', this)" class="seal-choice text-lg w-10 h-10 rounded-full border border-gray-200 transition">🌹</button>
+          <button onclick="selectSeal('🔥', this)" class="seal-choice text-lg w-10 h-10 rounded-full border border-gray-200 transition">🔥</button>
+          <button onclick="selectSeal('♾️', this)" class="seal-choice text-lg w-10 h-10 rounded-full border border-gray-200 transition">♾️</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 5: PROMISES -->
+    <section id="step-5" class="step-pane hidden space-y-5">
+      <div>
+        <span class="text-xs uppercase tracking-widest text-rose-500 font-bold">05 · Promises</span>
+        <h2 class="serif text-3xl font-bold mt-1">Promises to keep.</h2>
+        <p class="text-xs text-gray-500 mt-1">She ticks each promise at the end of her walk to trigger a celebration.</p>
+      </div>
+
+      <div class="space-y-2" id="promises-pool">
+        <div onclick="togglePromisePill(this)" class="prom-active cursor-pointer p-3 rounded-xl border border-rose-500 bg-rose-50 text-xs font-semibold text-rose-800 transition">✓ Always share the last bite</div>
+        <div onclick="togglePromisePill(this)" class="prom-active cursor-pointer p-3 rounded-xl border border-rose-500 bg-rose-50 text-xs font-semibold text-rose-800 transition">✓ Hold your hand in every crowd</div>
+        <div onclick="togglePromisePill(this)" class="prom-active cursor-pointer p-3 rounded-xl border border-rose-500 bg-rose-50 text-xs font-semibold text-rose-800 transition">✓ Answer the phone at 3am, always</div>
+        <div onclick="togglePromisePill(this)" class="prom-active cursor-pointer p-3 rounded-xl border border-rose-500 bg-rose-50 text-xs font-semibold text-rose-800 transition">✓ Choose you again, every ordinary morning</div>
+      </div>
+    </section>
+
+    <!-- WIZARD FOOTER NAVIGATION -->
+    <div class="flex items-center justify-between mt-7 pt-4 border-t border-gray-100">
+      <button id="prev-btn" onclick="changeStep(-1)" class="text-xs font-semibold text-gray-400 hover:text-gray-600 invisible">← Back</button>
+      <button id="next-btn" onclick="changeStep(1)" class="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-md transition">
+        Next Room →
+      </button>
+    </div>
+  </main>
+
+  <!-- ==================== RECIPIENT INTERACTIVE GIFT VIEW ==================== -->
+  <div id="recipient-view" class="hidden relative z-10 w-full max-w-md space-y-6 pb-24">
+
+    <!-- ROOM 1: ANIMATED 3D ENTRANCE DOOR -->
+    <div id="room-door" class="door-card bg-white/95 backdrop-blur-sm rounded-3xl p-8 text-center shadow-xl border border-rose-100 space-y-5 room-reveal">
+      <div class="text-xs uppercase tracking-widest text-rose-500 font-bold" id="disp-occasion">Just because 💌</div>
+      <h1 class="serif text-4xl font-bold">For <span id="disp-her">Ananya</span></h1>
+      <p class="text-xs text-gray-500">built by hand, by <span id="disp-you" class="font-semibold text-gray-700">Rahul</span></p>
+
+      <div class="py-8">
+        <div onclick="unlockMuseum()" class="ribbon-pulse cursor-pointer mx-auto w-32 h-32 rounded-full bg-gradient-to-br from-rose-100 to-rose-200 flex flex-col items-center justify-center shadow-inner border border-rose-300/50 hover:shadow-lg transition">
+          <span class="text-5xl select-none">🎀</span>
+          <span class="text-[11px] font-bold text-rose-800 mt-1.5 tracking-wide">Tap to untie</span>
+        </div>
+      </div>
+      <p class="serif italic text-lg text-gray-600">"Someone built a private museum, just for you."</p>
+    </div>
+
+    <!-- UNLOCKED MUSEUM ROOMS -->
+    <div id="museum-rooms" class="hidden space-y-6">
+
+      <!-- ROOM 2: 9-PIECE SCRAMBLED PHOTO PUZZLE -->
+      <div class="bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-rose-100 space-y-4 room-reveal">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold uppercase tracking-wider text-rose-500">Room 01 · Memory Puzzle</span>
+          <button onclick="solvePuzzleInstantly()" class="text-[11px] underline text-gray-400 hover:text-rose-600">Auto-solve ✨</button>
+        </div>
+        <p id="puzzle-status" class="text-xs text-gray-600">Tap any two tiles to swap them and complete our photo:</p>
+
+        <div id="puzzle-grid" class="grid grid-cols-3 gap-1.5 w-64 h-64 mx-auto rounded-2xl overflow-hidden shadow-md bg-rose-50 p-1"></div>
+        <p id="puzzle-caption" class="serif italic text-center text-xl text-gray-800 pt-2"></p>
+      </div>
+
+      <!-- ROOM 3: 3D FLIP REASONS CARDS -->
+      <div class="bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-rose-100 space-y-3 room-reveal">
+        <span class="text-xs font-bold uppercase tracking-wider text-rose-500">Room 02 · Little Truths</span>
+        <h3 class="serif text-2xl font-bold">What I love about you</h3>
+        <p class="text-xs text-gray-500">Tap each envelope card to flip it open:</p>
+        <div id="disp-reasons" class="space-y-2.5 pt-2"></div>
+      </div>
+
+      <!-- ROOM 4: WAX-SEALED LOVE LETTER -->
+      <div class="bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-rose-100 space-y-4 text-center room-reveal">
+        <span class="text-xs font-bold uppercase tracking-wider text-rose-500">Room 03 · Sealed Note</span>
+        <h3 class="serif text-2xl font-bold">A Letter in My Words</h3>
+
+        <div class="relative bg-gradient-to-b from-rose-50/80 to-amber-50/40 rounded-2xl p-6 border border-rose-200/80 min-h-[180px] flex flex-col items-center justify-center shadow-inner overflow-hidden">
+          <!-- Wax Seal Overlay -->
+          <div id="wax-overlay" class="flex flex-col items-center justify-center z-10 py-4">
+            <button onclick="breakWaxSeal()" id="wax-btn" class="wax-seal w-16 h-16 rounded-full bg-rose-600 text-white text-2xl flex items-center justify-center cursor-pointer">
+              💞
+            </button>
+            <span class="text-xs font-semibold text-rose-700 mt-3 animate-pulse">Tap the wax seal to break it</span>
+          </div>
+          <!-- Unfolded Letter Text -->
+          <p id="disp-letter" class="serif text-xl leading-relaxed text-gray-800 hidden"></p>
+        </div>
+      </div>
+
+      <!-- ROOM 5: INTERACTIVE PROMISES CHECKLIST -->
+      <div class="bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-rose-100 space-y-4 room-reveal">
+        <span class="text-xs font-bold uppercase tracking-wider text-rose-500">Room 04 · Our Promises</span>
+        <h3 class="serif text-2xl font-bold">Tick the ones you'll hold on to</h3>
+        <div id="disp-promises" class="space-y-2.5"></div>
+        <div id="promises-sealed-banner" class="hidden p-5 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 text-white text-center space-y-1 shadow-lg room-reveal">
+          <div class="text-2xl">💞 Forever Sealed</div>
+          <div class="serif italic text-base opacity-95">"Made by hand, for one person, and that person is you."</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FREE SHARE BAR (REPLACES PAYMENT GATEWAY) -->
+    <div id="share-bar" class="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/95 backdrop-blur-md text-gray-900 p-3.5 rounded-2xl shadow-2xl border border-rose-200 flex items-center justify-between z-50">
+      <div class="pl-1">
+        <div class="text-xs font-bold text-rose-600">✨ Ready to Gift</div>
+        <div class="text-[11px] text-gray-500">Share this private museum for free</div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="copyShareLink()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold px-3.5 py-2.5 rounded-xl transition">
+          Copy Link 🔗
+        </button>
+        <button onclick="shareOnWhatsApp()" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition">
+          WhatsApp 💬
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    const totalSteps = 5;
+    let selectedOccasion = "Just because 💌";
+    let selectedTheme = "soft";
+    let selectedSeal = "💞";
+    let uploadedPhotoURL = "https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=600&q=80";
+    let puzzleOrder = [2, 0, 5, 1, 8, 3, 7, 4, 6];
+    let selectedTileIndex = null;
+    let puzzleSolved = false;
+
+    const themeConfigs = {
+      soft: { bg: '#fff8f6', text: '#271519', emojis: ['🌸', '💗', '🌙', '✨'] },
+      silly: { bg: '#fffbeb', text: '#291d0a', emojis: ['🌻', '💛', '✨', '🦋'] },
+      butterflies: { bg: '#fff1f2', text: '#3b0712', emojis: ['❤️', '🌹', '🔥', '💋'] },
+      rideordie: { bg: '#f5f3ff', text: '#1e1b4b', emojis: ['💜', '✨', '🌙', '♾️'] }
+    };
+
+    // Spawn Floating Background Particles
+    function spawnParticles(themeKey = 'soft') {
+      const container = document.getElementById('particles-container');
+      container.innerHTML = '';
+      const emojis = themeConfigs[themeKey].emojis;
+      for (let i = 0; i < 16; i++) {
+        const span = document.createElement('span');
+        span.className = 'particle select-none';
+        span.innerText = emojis[i % emojis.length];
+        span.style.left = `${Math.random() * 96}vw`;
+        span.style.fontSize = `${14 + Math.random() * 14}px`;
+        span.style.animationDuration = `${9 + Math.random() * 10}s`;
+        span.style.animationDelay = `${Math.random() * 6}s`;
+        container.appendChild(span);
+      }
+    }
+
+    // Celebrate with Heart Confetti
+    function fireRomanticConfetti() {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 55,
+          spread: 70,
+          origin: { y: 0.65 },
+          colors: ['#e11d48', '#fb7185', '#fda4af', '#f43f5e']
+        });
+      }
+    }
+
+    function changeStep(delta) {
+      document.getElementById(`step-${currentStep}`).classList.add('hidden');
+      currentStep += delta;
+
+      if (currentStep > totalSteps) {
+        currentStep = totalSteps;
+        togglePreviewMode();
+        return;
+      }
+
+      const nextPane = document.getElementById(`step-${currentStep}`);
+      nextPane.classList.remove('hidden');
+      nextPane.classList.remove('room-reveal');
+      void nextPane.offsetWidth; // trigger reflow for animation
+      nextPane.classList.add('room-reveal');
+
+      document.getElementById('step-indicator').innerText = `Step 0${currentStep} / 0${totalSteps}`;
+      document.getElementById('prev-btn').classList.toggle('invisible', currentStep === 1);
+      document.getElementById('next-btn').innerText = currentStep === totalSteps ? 'Preview Her Gift ✨' : 'Next Room →';
+    }
+
+    function selectOccasion(btn, text) {
+      selectedOccasion = text;
+      document.querySelectorAll('.occ-btn').forEach(b => {
+        b.className = "occ-btn px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-medium text-left transition";
+      });
+      btn.className = "occ-btn px-3 py-2.5 rounded-xl border border-rose-500 bg-rose-50 text-rose-700 text-xs font-semibold text-left transition";
+    }
+
+    function setTheme(theme, btn) {
+      selectedTheme = theme;
+      if (btn) {
+        document.querySelectorAll('.theme-btn').forEach(b => b.className = "theme-btn w-full p-3.5 rounded-2xl border border-gray-200 text-left flex items-center gap-3 transition");
+        btn.className = "theme-btn w-full p-3.5 rounded-2xl border-2 border-rose-500 bg-rose-50/60 text-left flex items-center gap-3 transition";
+      }
+      document.documentElement.style.setProperty('--bg-primary', themeConfigs[theme].bg);
+      document.documentElement.style.setProperty('--text-main', themeConfigs[theme].text);
+      spawnParticles(theme);
+    }
+
+    function handlePhotoUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        uploadedPhotoURL = evt.target.result;
+        document.getElementById('preview-upload').src = uploadedPhotoURL;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function togglePill(btn) {
+      btn.classList.toggle('pill-active');
+      btn.className = btn.classList.contains('pill-active')
+        ? "pill-active text-xs px-3 py-1.5 rounded-full border border-rose-500 bg-rose-50 text-rose-700 font-medium transition"
+        : "text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 transition";
+    }
+
+    function selectSeal(emoji, btn) {
+      selectedSeal = emoji;
+      document.querySelectorAll('.seal-choice').forEach(b => b.className = "seal-choice text-lg w-10 h-10 rounded-full border border-gray-200 transition");
+      btn.className = "seal-choice text-lg w-10 h-10 rounded-full border-2 border-rose-500 bg-rose-50 transition";
+    }
+
+    function togglePromisePill(div) {
+      div.classList.toggle('prom-active');
+      div.className = div.classList.contains('prom-active')
+        ? "prom-active cursor-pointer p-3 rounded-xl border border-rose-500 bg-rose-50 text-xs font-semibold text-rose-800 transition"
+        : "cursor-pointer p-3 rounded-xl border border-gray-200 text-xs text-gray-500 transition";
+    }
+
+    function togglePreviewMode() {
+      const builder = document.getElementById('builder-view');
+      const recipient = document.getElementById('recipient-view');
+      const modeBtn = document.getElementById('mode-btn');
+
+      if (builder.classList.contains('hidden')) {
+        builder.classList.remove('hidden');
+        recipient.classList.add('hidden');
+        modeBtn.innerText = "Preview Gift 👀";
+      } else {
+        populateRecipientView();
+        builder.classList.add('hidden');
+        recipient.classList.remove('hidden');
+        modeBtn.innerText = "← Edit Gift";
+      }
+    }
+
+    function populateRecipientView() {
+      const her = document.getElementById('her-name').value || 'Ananya';
+      const you = document.getElementById('your-name').value || 'Rahul';
+      document.getElementById('disp-her').innerText = her;
+      document.getElementById('disp-you').innerText = you;
+      document.getElementById('disp-occasion').innerText = selectedOccasion;
+      document.getElementById('puzzle-caption').innerText = `"${document.getElementById('photo-caption').value}"`;
+
+      // Reset Door & Rooms
+      const door = document.getElementById('room-door');
+      door.classList.remove('hidden', 'door-open');
+      document.getElementById('museum-rooms').classList.add('hidden');
+
+      // Reset Wax Seal
+      document.getElementById('wax-overlay').classList.remove('hidden');
+      const waxBtn = document.getElementById('wax-btn');
+      waxBtn.classList.remove('breaking');
+      waxBtn.innerText = selectedSeal;
+      const dispLetter = document.getElementById('disp-letter');
+      dispLetter.classList.add('hidden');
+      dispLetter.innerText = document.getElementById('love-letter').value;
+
+      // Reset Puzzle
+      puzzleOrder = [2, 0, 5, 1, 8, 3, 7, 4, 6];
+      puzzleSolved = false;
+      document.getElementById('puzzle-grid').classList.remove('puzzle-solved');
+      document.getElementById('puzzle-status').innerText = "Tap any two tiles to swap them and complete our photo:";
+      renderPuzzle();
+
+      // Populate 3D Flip Reason Cards
+      const reasonsContainer = document.getElementById('disp-reasons');
+      reasonsContainer.innerHTML = '';
+      document.querySelectorAll('#reasons-pool .pill-active').forEach((pill, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = "flip-card cursor-pointer";
+        wrapper.innerHTML = `
+          <div class="flip-inner">
+            <div class="flip-front bg-rose-50/80 border border-rose-200 text-xs font-bold text-rose-700 shadow-sm">
+              <span>💌 Secret Note #0${idx + 1}</span>
+              <span class="text-[11px] underline opacity-75">Tap to flip</span>
+            </div>
+            <div class="flip-back bg-white border-2 border-rose-300 shadow-md">
+              <span class="serif italic text-base text-gray-800">"${pill.innerText}"</span>
+              <span>✨</span>
+            </div>
+          </div>
+        `;
+        wrapper.onclick = function() {
+          this.classList.toggle('flipped');
+        };
+        reasonsContainer.appendChild(wrapper);
+      });
+
+      // Populate Promises Checklist
+      const promisesContainer = document.getElementById('disp-promises');
+      promisesContainer.innerHTML = '';
+      document.getElementById('promises-sealed-banner').classList.add('hidden');
+      document.querySelectorAll('#promises-pool .prom-active').forEach(p => {
+        const cleanText = p.innerText.replace('✓ ', '');
+        const item = document.createElement('label');
+        item.className = "flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-rose-50/50 text-xs font-medium transition";
+        item.innerHTML = `<input type="checkbox" onchange="checkAllPromises()" class="promise-chk w-4 h-4 accent-rose-600 rounded" /> <span>${cleanText}</span>`;
+        promisesContainer.appendChild(item);
+      });
+    }
+
+    function unlockMuseum() {
+      const door = document.getElementById('room-door');
+      door.classList.add('door-open');
+      fireRomanticConfetti();
+      setTimeout(() => {
+        door.classList.add('hidden');
+        document.getElementById('museum-rooms').classList.remove('hidden');
+      }, 650);
+    }
+
+    function renderPuzzle() {
+      const grid = document.getElementById('puzzle-grid');
+      grid.innerHTML = '';
+      puzzleOrder.forEach((piecePos, idx) => {
+        const tile = document.createElement('div');
+        const row = Math.floor(piecePos / 3);
+        const col = piecePos % 3;
+        tile.className = `puzzle-tile cursor-pointer rounded-md ${selectedTileIndex === idx ? 'ring-4 ring-rose-500 scale-90 z-10 shadow-lg' : ''}`;
+        tile.style.backgroundImage = `url('${uploadedPhotoURL}')`;
+        tile.style.backgroundSize = '256px 256px';
+        tile.style.backgroundPosition = `-${col * 85.33}px -${row * 85.33}px`;
+        tile.onclick = () => handleTileTap(idx);
+        grid.appendChild(tile);
+      });
+    }
+
+    function handleTileTap(idx) {
+      if (puzzleSolved) return;
+      if (selectedTileIndex === null) {
+        selectedTileIndex = idx;
+      } else {
+        const temp = puzzleOrder[selectedTileIndex];
+        puzzleOrder[selectedTileIndex] = puzzleOrder[idx];
+        puzzleOrder[idx] = temp;
+        selectedTileIndex = null;
+        checkPuzzleCompletion();
+      }
+      renderPuzzle();
+    }
+
+    function checkPuzzleCompletion() {
+      const isComplete = puzzleOrder.every((val, index) => val === index);
+      if (isComplete && !puzzleSolved) {
+        puzzleSolved = true;
+        document.getElementById('puzzle-grid').classList.add('puzzle-solved');
+        document.getElementById('puzzle-status').innerHTML = "<span class='text-rose-600 font-bold'>✨ Memory Unlocked!</span>";
+        fireRomanticConfetti();
+      }
+    }
+
+    function solvePuzzleInstantly() {
+      puzzleOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+      selectedTileIndex = null;
+      renderPuzzle();
+      checkPuzzleCompletion();
+    }
+
+    function breakWaxSeal() {
+      const btn = document.getElementById('wax-btn');
+      btn.classList.add('breaking');
+      setTimeout(() => {
+        document.getElementById('wax-overlay').classList.add('hidden');
+        const letter = document.getElementById('disp-letter');
+        letter.classList.remove('hidden');
+        letter.classList.add('letter-unfold');
+        fireRomanticConfetti();
+      }, 420);
+    }
+
+    function checkAllPromises() {
+      const checks = document.querySelectorAll('.promise-chk');
+      const allChecked = Array.from(checks).every(c => c.checked);
+      const banner = document.getElementById('promises-sealed-banner');
+      if (allChecked && banner.classList.contains('hidden')) {
+        banner.classList.remove('hidden');
+        fireRomanticConfetti();
+      } else if (!allChecked) {
+        banner.classList.add('hidden');
+      }
+    }
+
+    // Encode Gift State into Shareable Free URL
+    function buildShareableURL() {
+      const payload = {
+        h: document.getElementById('her-name').value,
+        y: document.getElementById('your-name').value,
+        o: selectedOccasion,
+        t: selectedTheme,
+        c: document.getElementById('photo-caption').value,
+        l: document.getElementById('love-letter').value,
+        s: selectedSeal,
+        r: Array.from(document.querySelectorAll('#reasons-pool .pill-active')).map(el => el.innerText),
+        p: Array.from(document.querySelectorAll('#promises-pool .prom-active')).map(el => el.innerText)
+      };
+      const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+      return `${window.location.origin}${window.location.pathname}#gift=${encoded}`;
+    }
+
+    function copyShareLink() {
+      const url = buildShareableURL();
+      navigator.clipboard?.writeText(url);
+      alert("✨ Free Gift Link Copied!\nSend it to her anywhere.");
+    }
+
+    function shareOnWhatsApp() {
+      const her = document.getElementById('her-name').value || 'you';
+      const url = buildShareableURL();
+      const text = encodeURIComponent(`Hey ${her}, I built a private museum of us just for you 🏛️💌 Open it here:\n${url}`);
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+    }
+
+    // Load Shared Gift Automatically if URL Hash Exists
+    window.addEventListener('DOMContentLoaded', () => {
+      spawnParticles('soft');
+      if (window.location.hash.startsWith('#gift=')) {
+        try {
+          const raw = window.location.hash.replace('#gift=', '');
+          const data = JSON.parse(decodeURIComponent(atob(raw)));
+          document.getElementById('her-name').value = data.h || 'Ananya';
+          document.getElementById('your-name').value = data.y || 'Rahul';
+          selectedOccasion = data.o || 'Just because 💌';
+          document.getElementById('photo-caption').value = data.c || '';
+          document.getElementById('love-letter').value = data.l || '';
+          selectedSeal = data.s || '💞';
+          setTheme(data.t || 'soft', null);
+
+          // Hide builder controls for pure recipient view
+          document.getElementById('top-nav').classList.add('hidden');
+          document.getElementById('share-bar').classList.add('hidden');
+          togglePreviewMode();
+        } catch (err) {
+          console.error("Invalid gift link", err);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
